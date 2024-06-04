@@ -3,7 +3,7 @@ const express = require('express');
 const app = express();
 const cors = require('cors');
 
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const jwt = require('jsonwebtoken')
 const port = process.env.PORT || 7000;
 
@@ -72,6 +72,43 @@ async function run() {
             res.send(result)
         });
 
+        // Get Users
+        app.get("/users", async (request, response) => {
+            const result = await usersCollection.find().toArray();
+            response.send(result);
+        });
+
+        // Get Users by email
+        // app.get("/userData/:email", async (req, res) => {
+        //     const email = req.params.email;
+        //     const query = { email: email }
+        //     const result = await usersCollection.findOne(query)
+        //     res.send(result);
+        // });
+
+        // HR verify full obj User
+        app.get("/usersCheck/:email", verifyToken, async (request, response) => {
+            const email = request.params.email;
+
+            // Ensure the email from the token matches the requested email
+            if (email !== request.decoded.email) {
+                return response.status(403).send({ message: "unauthorized" });
+            }
+
+            const query = { email: email };
+            const user = await usersCollection.findOne(query);
+            let hr = false;
+
+            // Check if the user exists and if their role is 'hr'
+            if (user.email && user.role === "hr") {
+                hr = user;
+            }
+
+            // console.log(hr);
+            response.send(hr);
+        });
+
+
         // HR User
         app.get("/users/hr/:email", verifyToken, async (request, response) => {
             const email = request.params.email;
@@ -108,10 +145,92 @@ async function run() {
             res.send(result)
         })
         // get Assets list
-        app.get("/assets", async(req,res)=>{
+        app.get("/assets", async (req, res) => {
             const result = await assetsCollection.find().toArray()
             res.send(result)
         })
+
+        // get Assets list
+        app.get("/assetOne/:id", async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) }
+            const result = await assetsCollection.findOne(query)
+            res.send(result)
+        })
+
+        //  Asset delete
+        app.delete("/asset/delete/:id", async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) }
+            const result = await assetsCollection.deleteOne(query)
+            res.send(result)
+        })
+
+        //  Asset update
+        app.patch("/update/:id", async (req, res) => {
+            const item = req.body;
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) }
+            const updateDoc = {
+                $set: {
+                    product_name: item.product_name,
+                    product_quantity: item.product_quantity,
+                    product_type: item.product_type,
+                    date_added: item.date_added,
+                }
+            }
+            const result = await assetsCollection.updateOne(query, updateDoc)
+            res.send(result)
+        })
+
+        // Add An User To the Company
+        app.patch("/users/:id", verifyToken, async (req, res) => {
+            const id = req.params.id;
+            // const data = req.body;
+            const { companyName, companyLogo } = req.body;
+
+            const filter = { _id: new ObjectId(id) };
+            const updateDoc = {
+                $set: {
+                    companyName,
+                    companyLogo,
+                },
+            };
+            const result = await usersCollection.updateOne(filter, updateDoc);
+            res.send(result);
+        });
+
+        // Remove An User From the Company
+        app.patch("/usersRemove/:id", verifyToken, async (req, res) => {
+            const id = req.params.id;
+            const filter = { _id: new ObjectId(id) };
+            const updateDoc = {
+                $unset: {
+                    companyName: "",
+                    companyLogo: "",
+                },
+            };
+            const result = await usersCollection.updateOne(filter, updateDoc);
+            res.send(result);
+        });
+
+        // my employee
+        app.get("/users/company/:companyName", async (request, response) => {
+            const companyName = request.params.companyName;
+
+            // Ensure the user is authenticated
+            // if (!request.decoded || !request.decoded.email) {
+            //     return response.status(403).send({ message: "unauthorized" });
+            // }
+            
+
+            // Retrieve users from the specified company
+            const companyQuery = { companyName: companyName };
+            const employees = await usersCollection.find(companyQuery).toArray();
+
+            response.send(employees);
+        });
+
 
 
         // Send a ping to confirm a successful connection
