@@ -1,15 +1,23 @@
+require('dotenv').config()
 const express = require('express');
 const app = express();
 const cors = require('cors');
 
-
 const { MongoClient, ServerApiVersion } = require('mongodb');
 const jwt = require('jsonwebtoken')
-require('dotenv').config()
 const port = process.env.PORT || 7000;
 
+const corsOptions = {
+    origin: [
+        "http://localhost:5173",
+        "http://localhost:5174",
+        // "https://job-word.firebaseapp.com",
+        // "https://job-word.web.app"
+    ],
+    credentials: true,
+}
 // middleware
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.json());
 
 
@@ -64,10 +72,44 @@ async function run() {
             res.send(result)
         });
 
+        // HR User
+        app.get("/users/hr/:email", verifyToken, async (request, response) => {
+            const email = request.params.email;
+            if (email !== request.decoded.email) {
+                return response.status(403).send({ message: "unauthorized" });
+            }
+            const query = { email: email };
+            const user = await usersCollection.findOne(query);
+            let hr = false;
+            if (user) {
+                hr = user?.role === "hr";
+            }
+            response.send({ hr });
+        });
+        // Employee User
+        app.get("/users/employee/:email", verifyToken, async (request, response) => {
+            const email = request.params.email;
+            if (email !== request.decoded.email) {
+                return response.status(403).send({ message: "unauthorized" });
+            }
+            const query = { email: email };
+            const user = await usersCollection.findOne(query);
+            let employee = false;
+            if (user) {
+                employee = user?.role === "employee";
+            }
+            response.send({ employee });
+        });
+
         // add assets
-        app.post('/addAssets', async(req,res)=>{
+        app.post('/addAssets', async (req, res) => {
             const add = req.body;
             const result = await assetsCollection.insertOne(add)
+            res.send(result)
+        })
+        // get Assets list
+        app.get("/assets", async(req,res)=>{
+            const result = await assetsCollection.find().toArray()
             res.send(result)
         })
 
