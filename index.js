@@ -302,7 +302,39 @@ async function run() {
             const allRequests = await assetsCollection.find(query).toArray();
             response.send(allRequests);
         });
-        
+
+        // asset reject
+        //  Asset update
+        app.patch("/asset_rejected/:id", async (req, res) => {
+            // const item = req.body;
+            const id = req.params.id;
+            const { status } = req.body;
+            const query = { _id: new ObjectId(id) }
+            const updateDoc = {
+                $set: {
+                    status: "rejected",
+                }
+            }
+            const result = await assetsCollection.updateOne(query, updateDoc)
+            res.send(result)
+        })
+
+        //assets status make return 
+        app.patch("/asset_returned/:id", async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) };
+            const updateDoc = {
+                $set: {
+                    status: "returned"
+                },
+                $inc: {
+                    product_quantity: 1
+                }
+            };
+            const result = await assetsCollection.updateOne(query, updateDoc);
+            res.send(result);
+        });
+
 
 
 
