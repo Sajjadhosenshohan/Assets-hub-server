@@ -182,7 +182,7 @@ async function run() {
         // get Assets list
         app.get("/assetByEmail/:email", async (req, res) => {
             const email = req.params.email;
-            const query = { requesterEmail: email}
+            const query = { requesterEmail: email }
             const result = await assetsCollection.find(query).toArray()
             res.send(result)
         })
@@ -215,15 +215,17 @@ async function run() {
         // Add An User To the Company
         app.patch("/users/:id", verifyToken, async (req, res) => {
             const id = req.params.id;
-            // const data = req.body;
-            const { companyName, companyLogo,affiliate} = req.body;
+            const data = req.body;
+            // console.log(data)
+            const { companyName, companyLogo, affiliate, Added_By } = req.body;
 
             const filter = { _id: new ObjectId(id) };
             const updateDoc = {
                 $set: {
                     companyName,
                     companyLogo,
-                    affiliate
+                    affiliate,
+                    Added_By
                 },
             };
             const result = await usersCollection.updateOne(filter, updateDoc);
@@ -283,10 +285,24 @@ async function run() {
         // get Assets list
         app.get("/allRequest/:email", async (req, res) => {
             const email = req.params.email;
-            const query = { requesterEmail: email}
+            const query = { requesterEmail: email }
             const result = await assetsCollection.find(query).toArray()
             res.send(result)
         })
+
+        // all request
+        app.get("/allRequestByEmail/:email", verifyToken, async (request, response) => {
+            const email = request.params.email;
+
+            if (email !== request.decoded.email) {
+                return response.status(403).send({ message: "unauthorized" });
+            }
+            const query = { Item_Added_By: email };
+            // console.log(query)
+            const allRequests = await assetsCollection.find(query).toArray();
+            response.send(allRequests);
+        });
+        
 
 
 
