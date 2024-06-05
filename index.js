@@ -108,6 +108,27 @@ async function run() {
             response.send(hr);
         });
 
+        // employee verify full obj User
+        app.get("/usersCheckEmployee/:email", verifyToken, async (request, response) => {
+            const email = request.params.email;
+
+            // Ensure the email from the token matches the requested email
+            if (email !== request.decoded.email) {
+                return response.status(403).send({ message: "unauthorized" });
+            }
+
+            const query = { email: email };
+            const user = await usersCollection.findOne(query);
+            let employee = false;
+
+            // Check if the user exists and if their role is 'employee'
+            if (user.email && user.role === "employee") {
+                employee = user;
+            }
+            // console.log(hr);
+            response.send(employee);
+        });
+
 
         // HR User
         app.get("/users/hr/:email", verifyToken, async (request, response) => {
@@ -157,6 +178,14 @@ async function run() {
             const result = await assetsCollection.findOne(query)
             res.send(result)
         })
+        // find my assets by email
+        // get Assets list
+        app.get("/assetByEmail/:email", async (req, res) => {
+            const email = req.params.email;
+            const query = { requesterEmail: email}
+            const result = await assetsCollection.find(query).toArray()
+            res.send(result)
+        })
 
         //  Asset delete
         app.delete("/asset/delete/:id", async (req, res) => {
@@ -187,13 +216,14 @@ async function run() {
         app.patch("/users/:id", verifyToken, async (req, res) => {
             const id = req.params.id;
             // const data = req.body;
-            const { companyName, companyLogo } = req.body;
+            const { companyName, companyLogo,affiliate} = req.body;
 
             const filter = { _id: new ObjectId(id) };
             const updateDoc = {
                 $set: {
                     companyName,
                     companyLogo,
+                    affiliate
                 },
             };
             const result = await usersCollection.updateOne(filter, updateDoc);
@@ -222,7 +252,6 @@ async function run() {
             // if (!request.decoded || !request.decoded.email) {
             //     return response.status(403).send({ message: "unauthorized" });
             // }
-            
 
             // Retrieve users from the specified company
             const companyQuery = { companyName: companyName };
@@ -230,6 +259,35 @@ async function run() {
 
             response.send(employees);
         });
+
+        //  Asset update
+        app.put("/assets/:id", async (req, res) => {
+            const item = req.body;
+            const { requestDate, requesterName, requesterEmail, notes } = item
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) }
+            const updateDoc = {
+                $set: {
+                    ...item,
+                    requestDate,
+                    requesterEmail,
+                    requesterName,
+                    notes
+                }
+            }
+            const result = await assetsCollection.updateOne(query, updateDoc)
+            res.send(result)
+        })
+
+        // all request by us status
+        // get Assets list
+        app.get("/allRequest/:email", async (req, res) => {
+            const email = req.params.email;
+            const query = { requesterEmail: email}
+            const result = await assetsCollection.find(query).toArray()
+            res.send(result)
+        })
+
 
 
 
