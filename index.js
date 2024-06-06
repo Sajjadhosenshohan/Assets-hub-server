@@ -2,7 +2,9 @@ require('dotenv').config()
 const express = require('express');
 const app = express();
 const cors = require('cors');
-
+// This is your test secret API key.
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY)
+// const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const jwt = require('jsonwebtoken')
 const port = process.env.PORT || 7000;
@@ -97,10 +99,11 @@ async function run() {
 
             const query = { email: email };
             const user = await usersCollection.findOne(query);
+            // console.log(user)
             let hr = false;
 
             // Check if the user exists and if their role is 'hr'
-            if (user.email && user.role === "hr") {
+            if (user?.email && user?.role === "hr") {
                 hr = user;
             }
 
@@ -122,7 +125,7 @@ async function run() {
             let employee = false;
 
             // Check if the user exists and if their role is 'employee'
-            if (user.email && user.role === "employee") {
+            if (user?.email && user?.role === "employee") {
                 employee = user;
             }
             // console.log(hr);
@@ -304,7 +307,6 @@ async function run() {
         });
 
         // asset reject
-        //  Asset update
         app.patch("/asset_rejected/:id", async (req, res) => {
             // const item = req.body;
             const id = req.params.id;
@@ -335,7 +337,83 @@ async function run() {
             res.send(result);
         });
 
+        //  Asset update
+        app.put("/asset_status_change/:id", async (req, res) => {
+            const id = req.params.id;
+            const item = req.body;
+            const { status, approvedDate } = item;
+            const query = { _id: new ObjectId(id) }
+            const options = { upsert: true };
+            const updateDoc = {
+                $set: {
+                    ...item,
+                    status: status,
+                    approvedDate: approvedDate
+                }
+            }
+            const result = await assetsCollection.updateOne(query, updateDoc, options)
+            res.send(result)
+        })
 
+        // // monthly request
+        // app.get('/requestsByEmail/:email', async (req, res) => {
+        //     const { email } = req.params;
+        //     const { month, year } = req.query;
+
+
+        //     const requests = await Request.find({
+        //         requesterEmail: email,
+        //         requestDate: {
+        //             $gte: new Date(`${year}-${month}-01`),
+        //             $lt: new Date(`${year}-${month}-01`).setMonth(new Date(`${year}-${month}-01`).getMonth() + 1)
+        //         }
+        //     });
+
+        //     res.json(requests);
+        // });
+
+        app.get('/requestsByEmail/:email', verifyToken, async (req, res) => {
+            const { email } = req.params;
+            const { month, year } = req.query;
+            console.log(`Fetching requests for email: ${email}, month: ${typeof month}, year: ${year}`);
+
+            const startDate = new Date(`${year}-${month}-01`);
+            console.log("start date", typeof startDate)
+            const endDate = new Date(startDate);
+            endDate.setMonth(endDate.getMonth() + 1);
+
+            try {
+                const requests = await assetsCollection.find({
+                    requesterEmail: email,
+                    requestDate: {
+                        $gte: startDate,
+                        $lt: endDate
+                    }
+                }).toArray();
+
+                res.json(requests);
+            } catch (error) {
+                res.status(500).send('Error fetching requests');
+            }
+        });
+
+        // payments
+        app.post("/create-payment-intent", async (req, res) => {
+            const { category_price } = req.body;
+            console.log(category_price)
+            const amount = parseInt(category_price * 100)
+            
+            // Create a PaymentIntent with the order amount and currency
+            const paymentIntent = await stripe.paymentIntents.create({
+                amount: amount,
+                currency: "usd",
+                payment_method_types: ['card']
+            });
+
+            res.send({
+                clientSecret: paymentIntent.client_secret,
+            });
+        })
 
 
 
