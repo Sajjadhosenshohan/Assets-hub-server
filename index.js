@@ -283,11 +283,30 @@ async function run() {
         });
 
         //  Asset update
+        // app.put("/assets/:id", async (req, res) => {
+        //     const item = req.body;
+        //     const { requestDate, requesterName, requesterEmail, notes } = item
+        //     const id = req.params.id;
+        //     const query = { _id: new ObjectId(id) }
+        //     const updateDoc = {
+        //         $set: {
+        //             ...item,
+        //             requestDate,
+        //             requesterEmail,
+        //             requesterName,
+        //             notes
+        //         }
+        //     }
+        //     const result = await assetsCollection.updateOne(query, updateDoc)
+        //     res.send(result)
+        // })
+
+        // Update or create asset
         app.put("/assets/:id", async (req, res) => {
             const item = req.body;
-            const { requestDate, requesterName, requesterEmail, notes } = item
+            const { requestDate, requesterName, requesterEmail, notes } = item;
             const id = req.params.id;
-            const query = { _id: new ObjectId(id) }
+            const query = { _id: new ObjectId(id) };
             const updateDoc = {
                 $set: {
                     ...item,
@@ -296,10 +315,61 @@ async function run() {
                     requesterName,
                     notes
                 }
+            };
+            try {
+                const existingAsset = await assetsCollection.findOne(query);
+                if (existingAsset) {
+                    // Update existing asset
+                    const result = await assetsCollection.updateOne(query, updateDoc);
+                    res.json({ message: "Asset updated successfully", data: result });
+                } else {
+                    // Create new asset
+                    const result = await assetsCollection.insertOne(item);
+                    res.json({ message: "New asset created successfully", data: result });
+                }
+            } catch (error) {
+                console.error('Error updating/creating asset', error);
+                res.status(500).json({ message: "Internal server error" });
             }
-            const result = await assetsCollection.updateOne(query, updateDoc)
-            res.send(result)
-        })
+        });
+
+
+
+
+        // app.put("/assets/:productName", async (req, res) => {
+        //     const productName = req.params.productName;
+        //     const requestData = req.body;
+
+        //     try {
+        //         const query = { product_name: productName };
+        //         const asset = await assetsCollection.findOne(query);
+
+        //         if (!asset) {
+        //             return res.status(404).json({ message: "Asset not found" });
+        //         }
+
+        //         const previousRequestData = {
+        //             requesterEmail: asset.requesterEmail,
+        //             requesterName: asset.requesterName,
+        //             requestDate: asset.requestDate,
+        //             notes: asset.notes,
+        //             status: asset.status
+        //         };
+
+        //         const updatedRequestData = {
+        //             ...previousRequestData,
+        //             ...requestData
+        //         };
+
+        //         const result = await assetsCollection.updateOne(query, { $set: updatedRequestData });
+
+        //         res.json({ message: "Asset updated successfully", data: result });
+        //     } catch (error) {
+        //         console.error('Error updating asset', error);
+        //         res.status(500).json({ message: "Internal server error" });
+        //     }
+        // });
+
 
         // all request by us status
         // get Assets list
