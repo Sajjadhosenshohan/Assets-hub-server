@@ -38,6 +38,7 @@ async function run() {
     try {
         const usersCollection = client.db("myAssets").collection("users");
         const assetsCollection = client.db("myAssets").collection("assets");
+        const paymentCollection = client.db("myAssets").collection("payments");
 
         // jwt related api
         app.post('/jwt', async (req, res) => {
@@ -78,6 +79,22 @@ async function run() {
         app.get("/users", async (request, response) => {
             const result = await usersCollection.find().toArray();
             response.send(result);
+        });
+
+        // Get Users
+        app.patch("/users_update/:email", async (req, res) => {
+            const email = req.params.email;
+            const item = req.body;
+            console.log(item)
+            const query = { email: email }
+            const options = { upsert: true };
+            const updateDoc = {
+                $set: {
+                    name: item.name
+                }
+            }
+            const result = await usersCollection.updateOne(query, updateDoc, options)
+            res.send(result)
         });
 
         // Get Users by email
@@ -375,10 +392,10 @@ async function run() {
         app.get('/requestsByEmail/:email', verifyToken, async (req, res) => {
             const { email } = req.params;
             const { month, year } = req.query;
-            console.log(`Fetching requests for email: ${email}, month: ${typeof month}, year: ${year}`);
+            // console.log(`Fetching requests for email: ${email}, month: ${typeof month}, year: ${year}`);
 
             const startDate = new Date(`${year}-${month}-01`);
-            console.log("start date", typeof startDate)
+            // console.log("start date", typeof startDate)
             const endDate = new Date(startDate);
             endDate.setMonth(endDate.getMonth() + 1);
 
@@ -400,9 +417,9 @@ async function run() {
         // payments
         app.post("/create-payment-intent", async (req, res) => {
             const { category_price } = req.body;
-            console.log(category_price)
+            // console.log(category_price)
             const amount = parseInt(category_price * 100)
-            
+
             // Create a PaymentIntent with the order amount and currency
             const paymentIntent = await stripe.paymentIntents.create({
                 amount: amount,
@@ -415,6 +432,67 @@ async function run() {
             });
         })
 
+        app.post('/payments', async (req, res) => {
+            const payment = req.body;
+            const paymentResult = await paymentCollection.insertOne(payment);
+
+            //  carefully delete each item from the cart
+            // console.log('payment info', payment);
+            // const query = {
+            //     _id: {
+            //         $in: payment.cartIds.map(id => new ObjectId(id))
+            //     }
+            // };
+
+            // const deleteResult = await cartCollection.deleteMany(query);
+
+            res.send(paymentResult);
+        })
+
+        //  update package payment
+        app.patch("/payments/change/:email", async (req, res) => {
+            const { category_price } = req.body;
+            const email = req.params.email;
+            // console.log(440, category_price, email)
+            const query = { email: (email) }
+            const updateDoc = {
+                $set: {
+                    category: parseInt(category_price),
+                }
+            }
+            const result = await usersCollection.updateOne(query, updateDoc)
+            res.send(result)
+        })
+
+        // _________________
+        // get top 5 pending request
+        app.get('/pending_req/:email', async (req, res) => {
+            const { email } = req.params;
+            try {
+                const pendingRequests = await assetsCollection.find({ status: 'pending', Item_Added_By: email }).limit(5).toArray();
+
+                console.log(pendingRequests)
+                res.json(pendingRequests);
+            } catch (error) {
+                res.status(500).json({ message: error.message });
+            }
+        });
+
+        // Get top 4 most requested items for a specific HR email
+        app.get('/top_requests/:email', async (req, res) => {
+            const { email } = req.params;
+            try {
+                const topRequestedItems = await assetsCollection.aggregate([
+                    { $match: { Item_Added_By: email } },  // Filter by HR email
+                    { $group: { _id: "$product_name", requestCount: { $sum: 1 } } },
+                    { $sort: { requestCount: -1 } },
+                    // { $limit: 4 }
+                ]).toArray();
+                res.json(topRequestedItems);
+            } catch (error) {
+                res.status(500).json({ message: error.message });
+            }
+        });
 
 
         // Send a ping to confirm a successful connection
