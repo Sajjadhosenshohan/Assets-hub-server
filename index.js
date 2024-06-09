@@ -186,10 +186,46 @@ async function run() {
             res.send(result)
         })
         // get Assets list
+        // get Assets list
         app.get("/assets", async (req, res) => {
-            const result = await assetsCollection.find().toArray()
-            res.send(result)
-        })
+            const page = parseInt(req.query.page) || 0;
+            const size = parseInt(req.query.size) || 10;
+            const search = req.query.search || "";
+            const availabilityCheck = req.query.availabilityCheck || "";
+            console.log(page,size,search,availabilityCheck)
+            // Constructing the query based on search and availability filter
+            const query = {
+                product_name: { $regex: search, $options: "i" }
+            };
+        
+            // Adding availability filter if available in the query parameters
+            if (availabilityCheck) {
+                if (availabilityCheck === "available" || availabilityCheck === "out_of_stock") {
+                    query.availability = availabilityCheck;
+                } else if (availabilityCheck === "Returnable" || availabilityCheck === "Non-returnable") {
+                    query.product_type = availabilityCheck;
+                }
+            }
+        
+            try {
+                // Fetching assets based on the constructed query
+                const allAssets = await assetsCollection.find(query).skip(page * size).limit(size).toArray();
+        
+                // Counting total documents based on the query (without pagination)
+                const count = await assetsCollection.countDocuments(query);
+        
+                res.send({
+                    allAssets: allAssets,
+                    count: count
+                });
+            } catch (error) {
+                console.error("Error fetching assets:", error);
+                res.status(500).send({ message: "Internal Server Error" });
+            }
+        });
+        
+
+
 
         // get Assets list
         app.get("/assetOne/:id", async (req, res) => {
@@ -380,19 +416,33 @@ async function run() {
             res.send(result)
         })
 
-        // all request
-        app.get("/allRequestByEmail/:email", verifyToken, async (request, response) => {
-            const email = request.params.email;
+        // all request by email
+        app.get("/allRequestByEmail/:email", verifyToken, async (req, res) => {
+            const email = req.params.email;
 
-            if (email !== request.decoded.email) {
-                return response.status(403).send({ message: "unauthorized" });
+            if (email !== req.decoded.email) {
+                return res.status(403).send({ message: "unauthorized" });
             }
+            const page = parseInt(req.query.page) || 0;
+            const size = parseInt(req.query.size) || 10;
             const query = { Item_Added_By: email };
-            // console.log(query)
-            const allRequests = await assetsCollection.find(query).toArray();
-            response.send(allRequests);
+
+            try {
+                const allRequests = await assetsCollection.find(query).skip(page * size).limit(size).toArray();
+                const allRequestCount = await assetsCollection.countDocuments(query);
+
+                res.send({
+                    requests: allRequests,
+                    count: allRequestCount
+                });
+            } catch (error) {
+                console.error(error);
+                res.status(500).send({ message: "Internal Server Error" });
+            }
         });
 
+
+        // const count = await productCollection.estimatedDocumentCount();
         // asset reject
         app.patch("/asset_rejected/:id", async (req, res) => {
             // const item = req.body;
@@ -531,7 +581,7 @@ async function run() {
             const endDate = new Date(year, month, 1);
 
             try {
-                
+
                 const requests = await assetsCollection.aggregate([
                     {
                         $match: {
