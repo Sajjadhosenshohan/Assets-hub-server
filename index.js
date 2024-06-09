@@ -459,27 +459,104 @@ async function run() {
         //     res.json(requests);
         // });
 
-        app.get('/requestsByEmail/:email', verifyToken, async (req, res) => {
+        // app.get('/requestsByEmail/:email', async (req, res) => {
+        //     const { email } = req.params;
+        //     const { month, year } = req.query;
+        //     console.log(`Fetching requests for email: ${email}, month: ${month}, year: ${year}`);
+
+        //     const startDate = new Date(year, month - 1, 1);
+        //     const endDate = new Date(year, month, 1);
+
+        //     try {
+        //         const requests = await assetsCollection.find({
+        //             requesterEmail: email,
+        //             requestDate: {
+        //                 $gte: startDate,
+        //                 $lt: endDate
+        //             }
+        //         }).toArray();
+
+        //         res.json(requests);
+        //     } catch (error) {
+        //         console.error('Error fetching requests', error);
+        //         res.status(500).send('Error fetching requests');
+        //     }
+        // });
+
+        // app.get('/requestsByEmail/:email', async (req, res) => {
+        //     const { email } = req.params;
+        //     const { month, year } = req.query;
+        //     console.log(`Fetching requests for email: ${email}, month: ${month}, year: ${year}`);
+
+        //     const startDate = new Date(year, month - 1, 1);
+        //     const endDate = new Date(year, month, 1);
+
+        //     try {
+        //         const requests = await assetsCollection.aggregate([
+        //             {
+        //                 $match: {
+        //                     requesterEmail: email,
+        //                     requestDate: {
+        //                         $gte: startDate,
+        //                         $lt: endDate
+        //                     }
+        //                 }
+        //             },
+        //             {
+        //                 $addFields: {
+        //                     isoDateString: {
+        //                         $dateFromString: {
+        //                             dateString: "$requestDate",
+        //                             format: "%m/%d/%Y" // Adjusted format to match the requestDate format
+        //                         }
+        //                     }
+        //                 }
+        //             }
+        //         ]).toArray();
+        //         console.log(requests)
+        //         res.json(requests);
+        //     } catch (error) {
+        //         console.error('Error fetching requests', error);
+        //         res.status(500).send('Error fetching requests');
+        //     }
+        // });
+
+        app.get('/requestsByEmail/:email', async (req, res) => {
             const { email } = req.params;
             const { month, year } = req.query;
-            // console.log(`Fetching requests for email: ${email}, month: ${typeof month}, year: ${year}`);
+            console.log(`Fetching requests for email: ${email}, month: ${month}, year: ${year}`);
 
-            const startDate = new Date(`${year}-${month}-01`);
-            // console.log("start date", typeof startDate)
-            const endDate = new Date(startDate);
-            endDate.setMonth(endDate.getMonth() + 1);
+            // Correctly calculate the start and end dates for the given month and year
+            const startDate = new Date(year, month - 1, 1);
+            const endDate = new Date(year, month, 1);
 
             try {
-                const requests = await assetsCollection.find({
-                    requesterEmail: email,
-                    requestDate: {
-                        $gte: startDate,
-                        $lt: endDate
+                
+                const requests = await assetsCollection.aggregate([
+                    {
+                        $match: {
+                            requesterEmail: email,
+                            requestDate: {
+                                $gte: startDate,
+                                $lt: endDate
+                            }
+                        }
                     }
-                }).toArray();
-
+                    // {
+                    //     $addFields: {
+                    //         isoDateString: {
+                    //             $dateFromString: {
+                    //                 dateString: "$requestDate",
+                    //                 format: "%m/%d/%Y" // Adjusted format to match the requestDate format
+                    //             }
+                    //         }
+                    //     }
+                    // }
+                ]).toArray();
+                console.log(requests);
                 res.json(requests);
             } catch (error) {
+                console.error('Error fetching requests', error);
                 res.status(500).send('Error fetching requests');
             }
         });
@@ -541,8 +618,21 @@ async function run() {
             try {
                 const pendingRequests = await assetsCollection.find({ status: 'pending', Item_Added_By: email }).limit(5).toArray();
 
-                console.log(pendingRequests)
+                // console.log(pendingRequests)
                 res.json(pendingRequests);
+            } catch (error) {
+                res.status(500).json({ message: error.message });
+            }
+        });
+
+        // get Limited_stock_items
+        app.get('/Limited_stock_items/:email', async (req, res) => {
+            const { email } = req.params;
+            try {
+                const Limited_stock_items = await assetsCollection.find({ product_quantity: { $lt: 10 }, Item_Added_By: email }).toArray();
+
+                console.log(Limited_stock_items)
+                res.json(Limited_stock_items);
             } catch (error) {
                 res.status(500).json({ message: error.message });
             }
@@ -563,6 +653,13 @@ async function run() {
                 res.status(500).json({ message: error.message });
             }
         });
+        // get all assets for pie_chart
+        app.get("/Stats_chart/:email", async (req, res) => {
+            const email = req.params.email;
+            const query = { Item_Added_By: email }
+            const result = await assetsCollection.find(query).toArray()
+            res.send(result)
+        })
 
 
         // Send a ping to confirm a successful connection
