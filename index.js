@@ -192,12 +192,12 @@ async function run() {
             const size = parseInt(req.query.size) || 10;
             const search = req.query.search || "";
             const availabilityCheck = req.query.availabilityCheck || "";
-            console.log(page,size,search,availabilityCheck)
+            console.log(page, size, search, availabilityCheck)
             // Constructing the query based on search and availability filter
             const query = {
                 product_name: { $regex: search, $options: "i" }
             };
-        
+
             // Adding availability filter if available in the query parameters
             if (availabilityCheck) {
                 if (availabilityCheck === "available" || availabilityCheck === "out_of_stock") {
@@ -206,14 +206,14 @@ async function run() {
                     query.product_type = availabilityCheck;
                 }
             }
-        
+
             try {
                 // Fetching assets based on the constructed query
                 const allAssets = await assetsCollection.find(query).skip(page * size).limit(size).toArray();
-        
+
                 // Counting total documents based on the query (without pagination)
                 const count = await assetsCollection.countDocuments(query);
-        
+
                 res.send({
                     allAssets: allAssets,
                     count: count
@@ -223,7 +223,7 @@ async function run() {
                 res.status(500).send({ message: "Internal Server Error" });
             }
         });
-        
+
 
 
 
@@ -578,10 +578,22 @@ async function run() {
 
             // Correctly calculate the start and end dates for the given month and year
             const startDate = new Date(year, month - 1, 1);
-            const endDate = new Date(year, month, 1);
+            const endDate = new Date(year, month, 0, 23, 59, 59, 999); // Correctly set the end date to the last moment of the month
+
+            console.log("Start Date:", startDate, "End Date:", endDate);
 
             try {
+                // Update requestDate fields from string to Date type if necessary
+                await assetsCollection.find().forEach((doc) => {
+                    if (typeof doc.requestDate === 'string') {
+                        assetsCollection.updateOne(
+                            { _id: doc._id },
+                            { $set: { requestDate: new Date(doc.requestDate) } }
+                        );
+                    }
+                });
 
+                // Fetch requests for the specified email and time range
                 const requests = await assetsCollection.aggregate([
                     {
                         $match: {
@@ -592,16 +604,6 @@ async function run() {
                             }
                         }
                     }
-                    // {
-                    //     $addFields: {
-                    //         isoDateString: {
-                    //             $dateFromString: {
-                    //                 dateString: "$requestDate",
-                    //                 format: "%m/%d/%Y" // Adjusted format to match the requestDate format
-                    //             }
-                    //         }
-                    //     }
-                    // }
                 ]).toArray();
                 console.log(requests);
                 res.json(requests);
@@ -610,6 +612,38 @@ async function run() {
                 res.status(500).send('Error fetching requests');
             }
         });
+
+
+        // app.get('/requestsByEmail/:email', async (req, res) => {
+        //     const { email } = req.params;
+        //     const { month, year } = req.query;
+        //     console.log(`Fetching requests for email: ${email}, month: ${month}, year: ${year}`);
+
+        //     // Correctly calculate the start and end dates for the given month and year
+        //     const startDate = new Date(year, month - 1, 1);
+        //     const endDate = new Date(year, month, 1);
+
+        //     console.log("Start Date:", startDate, "End Date:", endDate);
+
+        //     try {
+        //         const requests = await assetsCollection.aggregate([
+        //             {
+        //                 $match: {
+        //                     requesterEmail: email,
+        //                     requestDate: {
+        //                         $gte: startDate,
+        //                         $lt: endDate
+        //                     }
+        //                 }
+        //             }
+        //         ]).toArray();
+        //         console.log(requests);
+        //         res.json(requests);
+        //     } catch (error) {
+        //         console.error('Error fetching requests', error);
+        //         res.status(500).send('Error fetching requests');
+        //     }
+        // });
 
         // payments
         app.post("/create-payment-intent", async (req, res) => {
