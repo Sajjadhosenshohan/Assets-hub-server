@@ -81,6 +81,27 @@ async function run() {
             response.send(result);
         });
 
+        // Get all Employee
+        app.get("/get_all_employee", async (req, res) => {
+            const page = parseInt(req.params.page) || 0;
+            const size = parseInt(req.params.size) || 10;
+
+            console.log(page, size)
+            // Counting total documents based on the query (without pagination)
+            const count = await assetsCollection.countDocuments();
+
+
+            // Find users where companyName field does not exist or is null
+            const usersWithoutCompanyName = await usersCollection.find({
+                companyName: null
+            }).skip(page * size).limit(size).toArray();
+
+            res.send({
+                AddEmployee: usersWithoutCompanyName,
+                count: count
+            });
+        });
+
         // Get Users
         app.patch("/users_update/:email", async (req, res) => {
             const email = req.params.email;
@@ -185,7 +206,14 @@ async function run() {
             const result = await assetsCollection.insertOne(add)
             res.send(result)
         })
-        // get Assets list
+
+        // add assets
+        app.post('/addAssetsByEmployee', async (req, res) => {
+            const add = req.body;
+            const result = await assetsCollection.insertOne(add)
+            res.send(result)
+        })
+
         // get Assets list
         app.get("/assets", async (req, res) => {
             const page = parseInt(req.query.page) || 0;
@@ -224,7 +252,11 @@ async function run() {
             }
         });
 
-
+        // all assets
+        app.get("/all_assets", async (req, res) => {
+            const result = await assetsCollection.find().toArray()
+            res.send(result)
+        })
 
 
         // get Assets list
@@ -234,13 +266,85 @@ async function run() {
             const result = await assetsCollection.findOne(query)
             res.send(result)
         })
-        // find my assets by email
-        // get Assets list
+
+        // my requested assets requested
         app.get("/assetByEmail/:email", async (req, res) => {
+            // 
             const email = req.params.email;
-            const query = { requesterEmail: email }
-            const result = await assetsCollection.find(query).toArray()
-            res.send(result)
+
+            const page = parseInt(req.query.page) || 0;
+            const size = parseInt(req.query.size) || 10;
+            const search = req.query.search || "";
+            const availabilityCheck = req.query.availabilityCheck || "";
+            console.log(page, size, search, availabilityCheck)
+            // Constructing the query based on search and availability filter
+            const query = {
+                requesterEmail: email,
+                product_name: { $regex: search, $options: "i" }
+            };
+
+            // Adding availability filter if available in the query parameters
+            if (availabilityCheck) {
+                if (availabilityCheck === "pending" || availabilityCheck === "approved") {
+                    query.status = availabilityCheck;
+                } else if (availabilityCheck === "Returnable" || availabilityCheck === "Non-returnable") {
+                    query.product_type = availabilityCheck;
+                }
+            }
+
+            // Fetching assets based on the constructed query
+            const allAssets = await assetsCollection.find(query).skip(page * size).limit(size).toArray();
+
+            // Counting total documents based on the query (without pagination)
+            const count = await assetsCollection.countDocuments(query);
+
+            res.send({
+                assetByEmail: allAssets,
+                count: count
+            });
+        })
+        // my assets by email
+        app.get("/all_assets/:email", async (req, res) => {
+            const email = req.params.email;
+
+            const page = parseInt(req.query.page) || 0;
+            const size = parseInt(req.query.size) || 10;
+
+            const search = req.query.search || "";
+            const availabilityCheck = req.query.availabilityCheck || "";
+
+            const sortField = req.query.sortField || "product_quantity";
+            const sortOrder = parseInt(req.query.sortOrder) || 1;
+
+            console.log(sortField, sortOrder)
+            // Constructing the query based on search and availability filter
+            const query = {
+                Item_Added_By: email,
+                product_name: { $regex: search, $options: "i" }
+            };
+
+            // Adding availability filter if available in the query parameters
+            if (availabilityCheck) {
+                if (availabilityCheck === "available" || availabilityCheck === "out_of_stock") {
+                    query.availability = availabilityCheck;
+                } else if (availabilityCheck === "Returnable" || availabilityCheck === "Non-returnable") {
+                    query.product_type = availabilityCheck;
+                }
+            }
+
+            // Fetching assets based on the constructed query
+            const allAssets = await assetsCollection.find(query).sort({ [sortField]: sortOrder })
+            .skip(page * size)
+            .limit(size)
+            .toArray();
+
+            // Counting total documents based on the query (without pagination)
+            const count = await assetsCollection.countDocuments(query);
+
+            res.send({
+                assets: allAssets,
+                count: count
+            });
         })
 
         //  Asset delete
@@ -303,19 +407,28 @@ async function run() {
         });
 
         // my employee
-        app.get("/users/company/:companyName", async (request, response) => {
-            const companyName = request.params.companyName;
+        app.get("/users/company/:companyName", async (req, res) => {
+            const companyName = req.params.companyName;
 
+            const page = parseInt(req.params.page) || 0;
+            const size = parseInt(req.params.size) || 10;
             // Ensure the user is authenticated
             // if (!request.decoded || !request.decoded.email) {
             //     return response.status(403).send({ message: "unauthorized" });
             // }
+            console.log(page, size, companyName)
 
-            // Retrieve users from the specified company
-            const companyQuery = { companyName: companyName };
-            const employees = await usersCollection.find(companyQuery).toArray();
 
-            response.send(employees);
+            // Find users where companyName field does not exist or is null
+            const usersWithoutCompanyName = await usersCollection.find({companyName}).skip(page * size).limit(size).toArray();
+
+            // Counting total documents based on the query (without pagination)
+            const count = await assetsCollection.countDocuments();
+
+            res.send({
+                myEmployee: usersWithoutCompanyName,
+                count: count
+            });
         });
 
         //  Asset update
@@ -492,84 +605,6 @@ async function run() {
             res.send(result)
         })
 
-        // // monthly request
-        // app.get('/requestsByEmail/:email', async (req, res) => {
-        //     const { email } = req.params;
-        //     const { month, year } = req.query;
-
-
-        //     const requests = await Request.find({
-        //         requesterEmail: email,
-        //         requestDate: {
-        //             $gte: new Date(`${year}-${month}-01`),
-        //             $lt: new Date(`${year}-${month}-01`).setMonth(new Date(`${year}-${month}-01`).getMonth() + 1)
-        //         }
-        //     });
-
-        //     res.json(requests);
-        // });
-
-        // app.get('/requestsByEmail/:email', async (req, res) => {
-        //     const { email } = req.params;
-        //     const { month, year } = req.query;
-        //     console.log(`Fetching requests for email: ${email}, month: ${month}, year: ${year}`);
-
-        //     const startDate = new Date(year, month - 1, 1);
-        //     const endDate = new Date(year, month, 1);
-
-        //     try {
-        //         const requests = await assetsCollection.find({
-        //             requesterEmail: email,
-        //             requestDate: {
-        //                 $gte: startDate,
-        //                 $lt: endDate
-        //             }
-        //         }).toArray();
-
-        //         res.json(requests);
-        //     } catch (error) {
-        //         console.error('Error fetching requests', error);
-        //         res.status(500).send('Error fetching requests');
-        //     }
-        // });
-
-        // app.get('/requestsByEmail/:email', async (req, res) => {
-        //     const { email } = req.params;
-        //     const { month, year } = req.query;
-        //     console.log(`Fetching requests for email: ${email}, month: ${month}, year: ${year}`);
-
-        //     const startDate = new Date(year, month - 1, 1);
-        //     const endDate = new Date(year, month, 1);
-
-        //     try {
-        //         const requests = await assetsCollection.aggregate([
-        //             {
-        //                 $match: {
-        //                     requesterEmail: email,
-        //                     requestDate: {
-        //                         $gte: startDate,
-        //                         $lt: endDate
-        //                     }
-        //                 }
-        //             },
-        //             {
-        //                 $addFields: {
-        //                     isoDateString: {
-        //                         $dateFromString: {
-        //                             dateString: "$requestDate",
-        //                             format: "%m/%d/%Y" // Adjusted format to match the requestDate format
-        //                         }
-        //                     }
-        //                 }
-        //             }
-        //         ]).toArray();
-        //         console.log(requests)
-        //         res.json(requests);
-        //     } catch (error) {
-        //         console.error('Error fetching requests', error);
-        //         res.status(500).send('Error fetching requests');
-        //     }
-        // });
 
         app.get('/requestsByEmail/:email', async (req, res) => {
             const { email } = req.params;
@@ -613,38 +648,6 @@ async function run() {
             }
         });
 
-
-        // app.get('/requestsByEmail/:email', async (req, res) => {
-        //     const { email } = req.params;
-        //     const { month, year } = req.query;
-        //     console.log(`Fetching requests for email: ${email}, month: ${month}, year: ${year}`);
-
-        //     // Correctly calculate the start and end dates for the given month and year
-        //     const startDate = new Date(year, month - 1, 1);
-        //     const endDate = new Date(year, month, 1);
-
-        //     console.log("Start Date:", startDate, "End Date:", endDate);
-
-        //     try {
-        //         const requests = await assetsCollection.aggregate([
-        //             {
-        //                 $match: {
-        //                     requesterEmail: email,
-        //                     requestDate: {
-        //                         $gte: startDate,
-        //                         $lt: endDate
-        //                     }
-        //                 }
-        //             }
-        //         ]).toArray();
-        //         console.log(requests);
-        //         res.json(requests);
-        //     } catch (error) {
-        //         console.error('Error fetching requests', error);
-        //         res.status(500).send('Error fetching requests');
-        //     }
-        // });
-
         // payments
         app.post("/create-payment-intent", async (req, res) => {
             const { category_price } = req.body;
@@ -666,16 +669,6 @@ async function run() {
         app.post('/payments', async (req, res) => {
             const payment = req.body;
             const paymentResult = await paymentCollection.insertOne(payment);
-
-            //  carefully delete each item from the cart
-            // console.log('payment info', payment);
-            // const query = {
-            //     _id: {
-            //         $in: payment.cartIds.map(id => new ObjectId(id))
-            //     }
-            // };
-
-            // const deleteResult = await cartCollection.deleteMany(query);
 
             res.send(paymentResult);
         })
