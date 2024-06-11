@@ -62,6 +62,18 @@ async function run() {
                 next();
             })
         }
+
+        // use verify admin after verifyToken
+        const verifyAdmin = async (req, res, next) => {
+            const email = req.decoded.email;
+            const query = { email: email };
+            const user = await usersCollection.findOne(query);
+            const isAdmin = user?.role === 'hr';
+            if (!isAdmin) {
+                return res.status(403).send({ message: 'forbidden access' });
+            }
+            next();
+        }
         // user rest api
         app.post('/users', async (req, res) => {
             const user = req.body;
@@ -76,13 +88,13 @@ async function run() {
         });
 
         // Get Users
-        app.get("/users", async (request, response) => {
+        app.get("/users", verifyToken, verifyAdmin, async (request, response) => {
             const result = await usersCollection.find().toArray();
             response.send(result);
         });
 
         // Get all Employee
-        app.get("/get_all_employee", async (req, res) => {
+        app.get("/get_all_employee", verifyToken, verifyAdmin, async (req, res) => {
             const page = parseInt(req.params.page) || 0;
             const size = parseInt(req.params.size) || 10;
 
@@ -271,7 +283,6 @@ async function run() {
         app.get("/assetByEmail/:email", async (req, res) => {
             // 
             const email = req.params.email;
-
             const page = parseInt(req.query.page) || 0;
             const size = parseInt(req.query.size) || 10;
             const search = req.query.search || "";
@@ -303,6 +314,18 @@ async function run() {
                 count: count
             });
         })
+
+        // my pending request for home
+        app.get("/myPendingRequest/:email", async (req, res) => {
+            const email = req.params.email;
+            const query = {
+                requesterEmail: email,
+                status: "pending"
+            };
+            const result = await assetsCollection.find(query).toArray()
+            res.send(result);
+        })
+        
         // my assets by email
         app.get("/all_assets/:email", async (req, res) => {
             const email = req.params.email;
@@ -334,9 +357,9 @@ async function run() {
 
             // Fetching assets based on the constructed query
             const allAssets = await assetsCollection.find(query).sort({ [sortField]: sortOrder })
-            .skip(page * size)
-            .limit(size)
-            .toArray();
+                .skip(page * size)
+                .limit(size)
+                .toArray();
 
             // Counting total documents based on the query (without pagination)
             const count = await assetsCollection.countDocuments(query);
@@ -420,13 +443,38 @@ async function run() {
 
 
             // Find users where companyName field does not exist or is null
-            const usersWithoutCompanyName = await usersCollection.find({companyName}).skip(page * size).limit(size).toArray();
+            const usersWithoutCompanyName = await usersCollection.find({ companyName }).skip(page * size).limit(size).toArray();
 
             // Counting total documents based on the query (without pagination)
-            const count = await assetsCollection.countDocuments();
+            const count = await usersCollection.countDocuments();
 
             res.send({
                 myEmployee: usersWithoutCompanyName,
+                count: count
+            });
+        });
+
+        // my employee
+        app.get("/users_company/:companyName", async (req, res) => {
+            const companyName = req.params.companyName;
+            console.log(companyName)
+            // Ensure the user is authenticated
+            // if (!request.decoded || !request.decoded.email) {
+            //     return response.status(403).send({ message: "unauthorized" });
+            // }
+            const page = parseInt(req.params.page) || 0;
+            const size = parseInt(req.params.size) || 10;
+            console.log(456, page, size, companyName)
+
+
+            // Find users where companyName field does not exist or is null
+            const usersWithoutCompanyName = await usersCollection.find({ companyName : companyName }).skip(page * size).limit(size).toArray();
+
+            // Counting total documents based on the query (without pagination)
+            const count = await usersCollection.countDocuments();
+
+            res.send({
+                myTeam: usersWithoutCompanyName,
                 count: count
             });
         });
@@ -706,7 +754,7 @@ async function run() {
         app.get('/Limited_stock_items/:email', async (req, res) => {
             const { email } = req.params;
             try {
-                const Limited_stock_items = await assetsCollection.find({ product_quantity: { $lt: 10 }, Item_Added_By: email }).toArray();
+                const Limited_stock_items = await assetsCollection.find({ product_quantity: { $lt: 10 }, Item_Added_By: email }).limit(5).toArray();
 
                 console.log(Limited_stock_items)
                 res.json(Limited_stock_items);
@@ -721,15 +769,32 @@ async function run() {
             try {
                 const topRequestedItems = await assetsCollection.aggregate([
                     { $match: { Item_Added_By: email } },  // Filter by HR email
-                    { $group: { _id: "$product_name", requestCount: { $sum: 1 } } },
+                    { 
+                        $group: { 
+                            _id: "$product_name", 
+                            requestCount: { $sum: 1 },
+                            requesterEmail: { $first: "$requesterEmail" },
+                            Item_Added_By: { $first: "$Item_Added_By" }
+                        }
+                    },
                     { $sort: { requestCount: -1 } },
-                    // { $limit: 4 }
-                ]).toArray();
+                    { 
+                        $project: {
+                            _id: 0,
+                            product_name: "$_id",
+                            requestCount: 1,
+                            requesterEmail: 1,
+                            Item_Added_By: 1
+                        }
+                    }
+                    
+                ]).limit(4).toArray();
                 res.json(topRequestedItems);
             } catch (error) {
                 res.status(500).json({ message: error.message });
             }
         });
+        
         // get all assets for pie_chart
         app.get("/Stats_chart/:email", async (req, res) => {
             const email = req.params.email;
