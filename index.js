@@ -501,7 +501,7 @@ async function run() {
         // Update or create asset
         app.put("/assets/:id", async (req, res) => {
             const item = req.body;
-            const { requestDate, requesterName, requesterEmail, notes } = item;
+            const { requestDate, requesterName, requesterEmail, notes ,companyName, companyLogo} = item;
             const id = req.params.id;
             const query = { _id: new ObjectId(id) };
             const updateDoc = {
@@ -510,7 +510,9 @@ async function run() {
                     requestDate,
                     requesterEmail,
                     requesterName,
-                    notes
+                    notes,
+                    companyName,
+                    companyLogo
                 }
             };
             try {
