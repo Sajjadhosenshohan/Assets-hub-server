@@ -644,12 +644,13 @@ async function run() {
 
 
         app.patch("/payments/change/:email", verifyToken, verifyAdmin,  async (req, res) => {
-            const { category_price } = req.body;
+            const { category_price , payment} = req.body;
             const email = req.params.email;
             const query = { email: (email) }
             const updateDoc = {
                 $set: {
                     category: parseInt(category_price),
+                    payment:payment
                 }
             }
             const result = await usersCollection.updateOne(query, updateDoc)
