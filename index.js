@@ -2,9 +2,7 @@ require('dotenv').config()
 const express = require('express');
 const app = express();
 const cors = require('cors');
-// This is your test secret API key.
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY)
-// const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const jwt = require('jsonwebtoken')
 const port = process.env.PORT || 7000;
@@ -13,8 +11,8 @@ const corsOptions = {
     origin: [
         "http://localhost:5173",
         "http://localhost:5174",
-        // "https://job-word.firebaseapp.com",
-        // "https://job-word.web.app"
+        "https://my-assets-c2027.firebaseapp.com",
+        "https://my-assets-c2027.web.app"
     ],
     credentials: true,
 }
@@ -134,22 +132,22 @@ async function run() {
         app.get("/usersCheck/:email",verifyToken, async (request, response) => {
             const email = request.params.email;
 
-            // Ensure the email from the token matches the requested email
+
             if (email !== request.decoded.email) {
                 return response.status(403).send({ message: "unauthorized" });
             }
 
             const query = { email: email };
             const user = await usersCollection.findOne(query);
-            // console.log(user)
+
             let hr = false;
 
-            // Check if the user exists and if their role is 'hr'
+
             if (user?.email && user?.role === "hr") {
                 hr = user;
             }
 
-            // console.log(hr);
+
             response.send(hr);
         });
 
@@ -157,7 +155,6 @@ async function run() {
         app.get("/usersCheckEmployee/:email", verifyToken, async (request, response) => {
             const email = request.params.email;
 
-            // Ensure the email from the token matches the requested email
             if (email !== request.decoded.email) {
                 return response.status(403).send({ message: "unauthorized" });
             }
@@ -165,8 +162,6 @@ async function run() {
             const query = { email: email };
             const user = await usersCollection.findOne(query);
             let employee = false;
-
-            // Check if the user exists and if their role is 'employee'
             if (user?.email && user?.role === "employee") {
                 employee = user;
             }
@@ -274,13 +269,13 @@ async function run() {
             const search = req.query.search || "";
             const availabilityCheck = req.query.availabilityCheck || "";
             console.log(page, size, search, availabilityCheck)
-            // Constructing the query based on search and availability filter
+
             const query = {
                 requesterEmail: email,
                 product_name: { $regex: search, $options: "i" }
             };
 
-            // Adding availability filter if available in the query parameters
+
             if (availabilityCheck) {
                 if (availabilityCheck === "pending" || availabilityCheck === "approved") {
                     query.status = availabilityCheck;
@@ -289,10 +284,9 @@ async function run() {
                 }
             }
 
-            // Fetching assets based on the constructed query
+
             const allAssets = await assetsCollection.find(query).skip(page * size).limit(size).toArray();
 
-            // Counting total documents based on the query (without pagination)
             const count = await assetsCollection.countDocuments(query);
 
             res.send({
@@ -311,15 +305,11 @@ async function run() {
             const result = await assetsCollection.find(query).toArray()
             res.send(result);
         })
-        //  jwt problem
+
         // my assets by email for assets list hr page
         app.get("/all_assets/:email",verifyToken,verifyAdmin,  async (req, res) => {
             const email = req.params.email;
 
-            // check admin/hr
-            // if (email !== req.decoded.email) {
-            //     return response.status(403).send({ message: "unauthorized" });
-            // }
 
             const page = parseInt(req.query.page) || 0;
             const size = parseInt(req.query.size) || 10;
@@ -423,11 +413,8 @@ async function run() {
             
             console.log(page, size, companyName)
 
-
-            // Find users where companyName field does not exist or is null
             const usersWithoutCompanyName = await usersCollection.find({ companyName }).skip(page * size).limit(size).toArray();
 
-            // Counting total documents based on the query (without pagination)
             const count = await usersCollection.countDocuments();
 
             res.send({
@@ -440,19 +427,14 @@ async function run() {
         app.get("/users_company/:companyName",verifyToken, async (req, res) => {
             const companyName = req.params.companyName;
             console.log(companyName)
-            // Ensure the user is authenticated
-            // if (!request.decoded || !request.decoded.email) {
-            //     return response.status(403).send({ message: "unauthorized" });
-            // }
+    
             const page = parseInt(req.params.page) || 0;
             const size = parseInt(req.params.size) || 10;
             console.log(456, page, size, companyName)
 
-
-            // Find users where companyName field does not exist or is null
             const usersWithoutCompanyName = await usersCollection.find({ companyName: companyName }).skip(page * size).limit(size).toArray();
 
-            // Counting total documents based on the query (without pagination)
+
             const count = await usersCollection.countDocuments();
 
             res.send({
@@ -480,11 +462,11 @@ async function run() {
             try {
                 const existingAsset = await assetsCollection.findOne(query);
                 if (existingAsset) {
-                    // Update existing asset
+                    
                     const result = await assetsCollection.updateOne(query, updateDoc);
                     res.json({ message: "Asset updated successfully", data: result });
                 } else {
-                    // Create new asset
+                    
                     const result = await assetsCollection.insertOne(item);
                     res.json({ message: "New asset created successfully", data: result });
                 }
@@ -528,10 +510,8 @@ async function run() {
         });
 
 
-        // const count = await productCollection.estimatedDocumentCount();
-        // asset reject
+
         app.patch("/asset_rejected/:id",verifyToken, async (req, res) => {
-            // const item = req.body;
             const id = req.params.id;
             const { status } = req.body;
             const query = { _id: new ObjectId(id) }
@@ -623,7 +603,6 @@ async function run() {
             // console.log(category_price)
             const amount = parseInt(category_price * 100)
 
-            // Create a PaymentIntent with the order amount and currency
             const paymentIntent = await stripe.paymentIntents.create({
                 amount: amount,
                 currency: "usd",
@@ -657,7 +636,6 @@ async function run() {
             res.send(result)
         })
 
-        // _________________
         // get top 5 pending request
         app.get('/pending_req/:email',verifyToken,verifyAdmin,  async (req, res) => {
             const { email } = req.params;
@@ -689,7 +667,7 @@ async function run() {
             const { email } = req.params;
             try {
                 const topRequestedItems = await assetsCollection.aggregate([
-                    { $match: { Item_Added_By: email } },  // Filter by HR email
+                    { $match: { Item_Added_By: email } },
                     {
                         $group: {
                             _id: "$product_name",
@@ -724,9 +702,7 @@ async function run() {
             res.send(result)
         })
 
-
-        // Send a ping to confirm a successful connection
-        await client.db("admin").command({ ping: 1 });
+        // await client.db("admin").command({ ping: 1 });
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
     } finally {
 
