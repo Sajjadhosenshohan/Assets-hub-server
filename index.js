@@ -49,7 +49,7 @@ async function run() {
 
         // middlewares 
         const verifyToken = (req, res, next) => {
-            // console.log('inside verify token', req.headers.authorization);
+            console.log('inside verify token', req.headers.authorization);
             if (!req.headers.authorization) {
                 return res.status(401).send({ message: 'unauthorized access' });
             }
@@ -65,9 +65,13 @@ async function run() {
 
         // use verify admin after verifyToken
         const verifyAdmin = async (req, res, next) => {
-            const email = req.decoded.email;
+            const email = req?.decoded.email;
+
+            console.log("admin or not", email)
             const query = { email: email };
             const user = await usersCollection.findOne(query);
+
+            console.log(user, "user ace ki")
             const isAdmin = user?.role === 'hr';
             if (!isAdmin) {
                 return res.status(403).send({ message: 'forbidden access' });
@@ -93,17 +97,12 @@ async function run() {
             response.send(result);
         });
 
-        // Get all Employee
-        app.get("/get_all_employee", verifyToken, verifyAdmin, async (req, res) => {
+        // Get all Employee and add
+        app.get("/get_all_employee",verifyToken,verifyAdmin, async (req, res) => {
             const page = parseInt(req.params.page) || 0;
             const size = parseInt(req.params.size) || 10;
 
-            console.log(page, size)
-            // Counting total documents based on the query (without pagination)
             const count = await assetsCollection.countDocuments();
-
-
-            // Find users where companyName field does not exist or is null
             const usersWithoutCompanyName = await usersCollection.find({
                 companyName: null
             }).skip(page * size).limit(size).toArray();
@@ -115,7 +114,7 @@ async function run() {
         });
 
         // Get Users
-        app.patch("/users_update/:email", async (req, res) => {
+        app.patch("/users_update/:email",verifyToken, async (req, res) => {
             const email = req.params.email;
             const item = req.body;
             console.log(item)
@@ -130,16 +129,9 @@ async function run() {
             res.send(result)
         });
 
-        // Get Users by email
-        // app.get("/userData/:email", async (req, res) => {
-        //     const email = req.params.email;
-        //     const query = { email: email }
-        //     const result = await usersCollection.findOne(query)
-        //     res.send(result);
-        // });
-
+        
         // HR verify full obj User
-        app.get("/usersCheck/:email", verifyToken, async (request, response) => {
+        app.get("/usersCheck/:email",verifyToken, async (request, response) => {
             const email = request.params.email;
 
             // Ensure the email from the token matches the requested email
@@ -212,33 +204,31 @@ async function run() {
             response.send({ employee });
         });
 
-        // add assets
-        app.post('/addAssets', async (req, res) => {
+        // add assets and jwt applied
+        app.post('/addAssets',verifyToken,verifyAdmin, async (req, res) => {
             const add = req.body;
             const result = await assetsCollection.insertOne(add)
             res.send(result)
         })
 
         // add assets
-        app.post('/addAssetsByEmployee', async (req, res) => {
+        app.post('/addAssetsByEmployee',verifyToken, async (req, res) => {
             const add = req.body;
             const result = await assetsCollection.insertOne(add)
             res.send(result)
         })
 
-        // get Assets list
-        app.get("/assets", async (req, res) => {
+        // get Assets list jwt problem
+        app.get("/assets_get",verifyToken,async (req, res) => {
             const page = parseInt(req.query.page) || 0;
             const size = parseInt(req.query.size) || 10;
             const search = req.query.search || "";
             const availabilityCheck = req.query.availabilityCheck || "";
             console.log(page, size, search, availabilityCheck)
-            // Constructing the query based on search and availability filter
             const query = {
                 product_name: { $regex: search, $options: "i" }
             };
 
-            // Adding availability filter if available in the query parameters
             if (availabilityCheck) {
                 if (availabilityCheck === "available" || availabilityCheck === "out_of_stock") {
                     query.availability = availabilityCheck;
@@ -248,12 +238,8 @@ async function run() {
             }
 
             try {
-                // Fetching assets based on the constructed query
                 const allAssets = await assetsCollection.find(query).skip(page * size).limit(size).toArray();
-
-                // Counting total documents based on the query (without pagination)
                 const count = await assetsCollection.countDocuments(query);
-
                 res.send({
                     allAssets: allAssets,
                     count: count
@@ -272,7 +258,7 @@ async function run() {
 
 
         // get Assets list
-        app.get("/assetOne/:id", async (req, res) => {
+        app.get("/assetOne/:id",verifyToken, async (req, res) => {
             const id = req.params.id;
             const query = { _id: new ObjectId(id) }
             const result = await assetsCollection.findOne(query)
@@ -280,7 +266,7 @@ async function run() {
         })
 
         // my requested assets requested
-        app.get("/assetByEmail/:email", async (req, res) => {
+        app.get("/assetByEmail/:email",verifyToken, async (req, res) => {
             // 
             const email = req.params.email;
             const page = parseInt(req.query.page) || 0;
@@ -316,7 +302,7 @@ async function run() {
         })
 
         // my pending request for home
-        app.get("/myPendingRequest/:email", async (req, res) => {
+        app.get("/myPendingRequest/:email",verifyToken, async (req, res) => {
             const email = req.params.email;
             const query = {
                 requesterEmail: email,
@@ -325,10 +311,15 @@ async function run() {
             const result = await assetsCollection.find(query).toArray()
             res.send(result);
         })
-        
-        // my assets by email
-        app.get("/all_assets/:email", async (req, res) => {
+        //  jwt problem
+        // my assets by email for assets list hr page
+        app.get("/all_assets/:email",verifyToken,verifyAdmin,  async (req, res) => {
             const email = req.params.email;
+
+            // check admin/hr
+            // if (email !== req.decoded.email) {
+            //     return response.status(403).send({ message: "unauthorized" });
+            // }
 
             const page = parseInt(req.query.page) || 0;
             const size = parseInt(req.query.size) || 10;
@@ -339,14 +330,11 @@ async function run() {
             const sortField = req.query.sortField || "product_quantity";
             const sortOrder = parseInt(req.query.sortOrder) || 1;
 
-            console.log(sortField, sortOrder)
-            // Constructing the query based on search and availability filter
             const query = {
                 Item_Added_By: email,
                 product_name: { $regex: search, $options: "i" }
             };
 
-            // Adding availability filter if available in the query parameters
             if (availabilityCheck) {
                 if (availabilityCheck === "available" || availabilityCheck === "out_of_stock") {
                     query.availability = availabilityCheck;
@@ -354,14 +342,11 @@ async function run() {
                     query.product_type = availabilityCheck;
                 }
             }
-
-            // Fetching assets based on the constructed query
             const allAssets = await assetsCollection.find(query).sort({ [sortField]: sortOrder })
                 .skip(page * size)
                 .limit(size)
                 .toArray();
 
-            // Counting total documents based on the query (without pagination)
             const count = await assetsCollection.countDocuments(query);
 
             res.send({
@@ -371,15 +356,15 @@ async function run() {
         })
 
         //  Asset delete
-        app.delete("/asset/delete/:id", async (req, res) => {
+        app.delete("/asset/delete/:id",verifyToken,verifyAdmin, async (req, res) => {
             const id = req.params.id;
             const query = { _id: new ObjectId(id) }
             const result = await assetsCollection.deleteOne(query)
             res.send(result)
         })
 
-        //  Asset update
-        app.patch("/update/:id", async (req, res) => {
+        //  Asset update by id
+        app.patch("/update/:id",verifyToken,verifyAdmin, async (req, res) => {
             const item = req.body;
             const id = req.params.id;
             const query = { _id: new ObjectId(id) }
@@ -396,10 +381,10 @@ async function run() {
         })
 
         // Add An User To the Company
-        app.patch("/users/:id", verifyToken, async (req, res) => {
+        app.patch("/users/:id", verifyToken, verifyAdmin, async (req, res) => {
             const id = req.params.id;
             const data = req.body;
-            // console.log(data)
+           
             const { companyName, companyLogo, affiliate, Added_By } = req.body;
 
             const filter = { _id: new ObjectId(id) };
@@ -416,7 +401,7 @@ async function run() {
         });
 
         // Remove An User From the Company
-        app.patch("/usersRemove/:id", verifyToken, async (req, res) => {
+        app.patch("/usersRemove/:id",verifyToken,verifyAdmin, async (req, res) => {
             const id = req.params.id;
             const filter = { _id: new ObjectId(id) };
             const updateDoc = {
@@ -430,15 +415,12 @@ async function run() {
         });
 
         // my employee
-        app.get("/users/company/:companyName", async (req, res) => {
+        app.get("/users/company/:companyName",verifyToken,verifyAdmin, async (req, res) => {
             const companyName = req.params.companyName;
 
             const page = parseInt(req.params.page) || 0;
             const size = parseInt(req.params.size) || 10;
-            // Ensure the user is authenticated
-            // if (!request.decoded || !request.decoded.email) {
-            //     return response.status(403).send({ message: "unauthorized" });
-            // }
+            
             console.log(page, size, companyName)
 
 
@@ -455,7 +437,7 @@ async function run() {
         });
 
         // my employee
-        app.get("/users_company/:companyName", async (req, res) => {
+        app.get("/users_company/:companyName",verifyToken, async (req, res) => {
             const companyName = req.params.companyName;
             console.log(companyName)
             // Ensure the user is authenticated
@@ -468,7 +450,7 @@ async function run() {
 
 
             // Find users where companyName field does not exist or is null
-            const usersWithoutCompanyName = await usersCollection.find({ companyName : companyName }).skip(page * size).limit(size).toArray();
+            const usersWithoutCompanyName = await usersCollection.find({ companyName: companyName }).skip(page * size).limit(size).toArray();
 
             // Counting total documents based on the query (without pagination)
             const count = await usersCollection.countDocuments();
@@ -478,30 +460,10 @@ async function run() {
                 count: count
             });
         });
-
-        //  Asset update
-        // app.put("/assets/:id", async (req, res) => {
-        //     const item = req.body;
-        //     const { requestDate, requesterName, requesterEmail, notes } = item
-        //     const id = req.params.id;
-        //     const query = { _id: new ObjectId(id) }
-        //     const updateDoc = {
-        //         $set: {
-        //             ...item,
-        //             requestDate,
-        //             requesterEmail,
-        //             requesterName,
-        //             notes
-        //         }
-        //     }
-        //     const result = await assetsCollection.updateOne(query, updateDoc)
-        //     res.send(result)
-        // })
-
         // Update or create asset
-        app.put("/assets/:id", async (req, res) => {
+        app.put("/assets/:id",verifyToken, async (req, res) => {
             const item = req.body;
-            const { requestDate, requesterName, requesterEmail, notes ,companyName, companyLogo} = item;
+            const { requestDate, requesterName, requesterEmail, notes, companyName, companyLogo } = item;
             const id = req.params.id;
             const query = { _id: new ObjectId(id) };
             const updateDoc = {
@@ -532,45 +494,6 @@ async function run() {
             }
         });
 
-
-
-
-        // app.put("/assets/:productName", async (req, res) => {
-        //     const productName = req.params.productName;
-        //     const requestData = req.body;
-
-        //     try {
-        //         const query = { product_name: productName };
-        //         const asset = await assetsCollection.findOne(query);
-
-        //         if (!asset) {
-        //             return res.status(404).json({ message: "Asset not found" });
-        //         }
-
-        //         const previousRequestData = {
-        //             requesterEmail: asset.requesterEmail,
-        //             requesterName: asset.requesterName,
-        //             requestDate: asset.requestDate,
-        //             notes: asset.notes,
-        //             status: asset.status
-        //         };
-
-        //         const updatedRequestData = {
-        //             ...previousRequestData,
-        //             ...requestData
-        //         };
-
-        //         const result = await assetsCollection.updateOne(query, { $set: updatedRequestData });
-
-        //         res.json({ message: "Asset updated successfully", data: result });
-        //     } catch (error) {
-        //         console.error('Error updating asset', error);
-        //         res.status(500).json({ message: "Internal server error" });
-        //     }
-        // });
-
-
-        // all request by us status
         // get Assets list
         app.get("/allRequest/:email", async (req, res) => {
             const email = req.params.email;
@@ -607,7 +530,7 @@ async function run() {
 
         // const count = await productCollection.estimatedDocumentCount();
         // asset reject
-        app.patch("/asset_rejected/:id", async (req, res) => {
+        app.patch("/asset_rejected/:id",verifyToken, async (req, res) => {
             // const item = req.body;
             const id = req.params.id;
             const { status } = req.body;
@@ -622,7 +545,7 @@ async function run() {
         })
 
         //assets status make return 
-        app.patch("/asset_returned/:id", async (req, res) => {
+        app.patch("/asset_returned/:id",verifyToken, async (req, res) => {
             const id = req.params.id;
             const query = { _id: new ObjectId(id) };
             const updateDoc = {
@@ -637,8 +560,8 @@ async function run() {
             res.send(result);
         });
 
-        //  Asset update
-        app.put("/asset_status_change/:id", async (req, res) => {
+        //  Asset update and add jwt
+        app.put("/asset_status_change/:id", verifyToken, verifyAdmin, async (req, res) => {
             const id = req.params.id;
             const item = req.body;
             const { status, approvedDate } = item;
@@ -647,8 +570,8 @@ async function run() {
             const updateDoc = {
                 $set: {
                     ...item,
-                    status: status,
-                    approvedDate: approvedDate
+                    status,
+                    approvedDate
                 }
             }
             const result = await assetsCollection.updateOne(query, updateDoc, options)
@@ -656,19 +579,16 @@ async function run() {
         })
 
 
-        app.get('/requestsByEmail/:email', async (req, res) => {
+        app.get('/requestsByEmail/:email',verifyToken, async (req, res) => {
             const { email } = req.params;
             const { month, year } = req.query;
-            console.log(`Fetching requests for email: ${email}, month: ${month}, year: ${year}`);
-
-            // Correctly calculate the start and end dates for the given month and year
+            console.log(`Fetching requests for email: ${email}, month: ${month}, year: ${year}`)
             const startDate = new Date(year, month - 1, 1);
-            const endDate = new Date(year, month, 0, 23, 59, 59, 999); // Correctly set the end date to the last moment of the month
+            const endDate = new Date(year, month, 0, 23, 59, 59, 999);
 
             console.log("Start Date:", startDate, "End Date:", endDate);
 
             try {
-                // Update requestDate fields from string to Date type if necessary
                 await assetsCollection.find().forEach((doc) => {
                     if (typeof doc.requestDate === 'string') {
                         assetsCollection.updateOne(
@@ -678,7 +598,6 @@ async function run() {
                     }
                 });
 
-                // Fetch requests for the specified email and time range
                 const requests = await assetsCollection.aggregate([
                     {
                         $match: {
@@ -716,18 +635,17 @@ async function run() {
             });
         })
 
-        app.post('/payments', async (req, res) => {
+        app.post('/payments', verifyToken, verifyAdmin,  async (req, res) => {
             const payment = req.body;
             const paymentResult = await paymentCollection.insertOne(payment);
 
             res.send(paymentResult);
         })
 
-        //  update package payment
-        app.patch("/payments/change/:email", async (req, res) => {
+
+        app.patch("/payments/change/:email", verifyToken, verifyAdmin,  async (req, res) => {
             const { category_price } = req.body;
             const email = req.params.email;
-            // console.log(440, category_price, email)
             const query = { email: (email) }
             const updateDoc = {
                 $set: {
@@ -740,7 +658,7 @@ async function run() {
 
         // _________________
         // get top 5 pending request
-        app.get('/pending_req/:email', async (req, res) => {
+        app.get('/pending_req/:email',verifyToken,verifyAdmin,  async (req, res) => {
             const { email } = req.params;
             try {
                 const pendingRequests = await assetsCollection.find({ status: 'pending', Item_Added_By: email }).limit(5).toArray();
@@ -753,7 +671,7 @@ async function run() {
         });
 
         // get Limited_stock_items
-        app.get('/Limited_stock_items/:email', async (req, res) => {
+        app.get('/Limited_stock_items/:email',verifyToken,verifyAdmin, async (req, res) => {
             const { email } = req.params;
             try {
                 const Limited_stock_items = await assetsCollection.find({ product_quantity: { $lt: 10 }, Item_Added_By: email }).limit(5).toArray();
@@ -766,21 +684,21 @@ async function run() {
         });
 
         // Get top 4 most requested items for a specific HR email
-        app.get('/top_requests/:email', async (req, res) => {
+        app.get('/top_requests/:email',verifyToken,verifyAdmin,  async (req, res) => {
             const { email } = req.params;
             try {
                 const topRequestedItems = await assetsCollection.aggregate([
                     { $match: { Item_Added_By: email } },  // Filter by HR email
-                    { 
-                        $group: { 
-                            _id: "$product_name", 
+                    {
+                        $group: {
+                            _id: "$product_name",
                             requestCount: { $sum: 1 },
                             requesterEmail: { $first: "$requesterEmail" },
                             Item_Added_By: { $first: "$Item_Added_By" }
                         }
                     },
                     { $sort: { requestCount: -1 } },
-                    { 
+                    {
                         $project: {
                             _id: 0,
                             product_name: "$_id",
@@ -789,16 +707,16 @@ async function run() {
                             Item_Added_By: 1
                         }
                     }
-                    
+
                 ]).limit(4).toArray();
                 res.json(topRequestedItems);
             } catch (error) {
                 res.status(500).json({ message: error.message });
             }
         });
-        
+
         // get all assets for pie_chart
-        app.get("/Stats_chart/:email", async (req, res) => {
+        app.get("/Stats_chart/:email",verifyToken,verifyAdmin,  async (req, res) => {
             const email = req.params.email;
             const query = { Item_Added_By: email }
             const result = await assetsCollection.find(query).toArray()
