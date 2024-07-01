@@ -9,10 +9,10 @@ const port = process.env.PORT || 7000;
 
 const corsOptions = {
     origin: [
-        // "http://localhost:5173",
-        // "http://localhost:5174",
-        "https://my-assets-c2027.firebaseapp.com",
-        "https://my-assets-c2027.web.app"
+        "http://localhost:5173",
+        "http://localhost:5174",
+        // "https://my-assets-c2027.firebaseapp.com",
+        // "https://my-assets-c2027.web.app"
     ],
     credentials: true,
 }
@@ -90,7 +90,7 @@ async function run() {
         });
 
         // payment
-        app.patch('/payment_status/:email',verifyToken,verifyAdmin, async (req, res) => {
+        app.patch('/payment_status/:email', verifyToken, verifyAdmin, async (req, res) => {
             const email = req.params.email;
             const item = req.body;
             const query = { email: (email) }
@@ -160,8 +160,6 @@ async function run() {
             if (user?.email && user?.role === "hr") {
                 hr = user;
             }
-
-
             response.send(hr);
         });
 
@@ -176,6 +174,7 @@ async function run() {
             const query = { email: email };
             const user = await usersCollection.findOne(query);
             let employee = false;
+
             if (user?.email && user?.role === "employee") {
                 employee = user;
             }
@@ -418,44 +417,45 @@ async function run() {
             res.send(result);
         });
 
-        // my employee
-        app.get("/users/company/:companyName", verifyToken, verifyAdmin, async (req, res) => {
+        // user by company name
+        app.get("/usersCompany/:companyName", verifyToken, async (req, res) => {
             const companyName = req.params.companyName;
+            // const page = parseInt(req.query.page)|| 0;
+            // const size = parseInt(req.query.size) || 10;
+            const size = parseInt(req.query.size)
+            const page = parseInt(req.query.page)
 
-            const page = parseInt(req.params.page) || 0;
-            const size = parseInt(req.params.size) || 10;
+            console.log(page, size)
+            const users = await usersCollection.find({ companyName: companyName }).skip(page * size).limit(size).toArray();
+            res.send(users);
 
-            // console.log(page, size, companyName)
-
-            const usersWithoutCompanyName = await usersCollection.find({ companyName }).skip(page * size).limit(size).toArray();
-
-            const count = await usersCollection.countDocuments();
-
-            res.send({
-                myEmployee: usersWithoutCompanyName,
-                count: count
-            });
         });
 
-        // my employee
-        app.get("/users_company/:companyName", verifyToken, async (req, res) => {
+        // Fetch user count by company name
+        app.get('/userCount/:companyName', verifyToken, async (req, res) => {
             const companyName = req.params.companyName;
-            // console.log(companyName)
-
-            const page = parseInt(req.params.page) || 0;
-            const size = parseInt(req.params.size) || 10;
-            // console.log(456, page, size, companyName)
-
-            const usersWithoutCompanyName = await usersCollection.find({ companyName: companyName }).skip(page * size).limit(size).toArray();
-
-
-            const count = await usersCollection.countDocuments();
-
-            res.send({
-                myTeam: usersWithoutCompanyName,
-                count: count
-            });
+            try {
+                const count = await usersCollection.countDocuments({ companyName: companyName });
+                res.send({ count });
+            } catch (error) {
+                console.error(error);
+                res.status(500).send({ error: 'An error occurred while fetching the user count' });
+            }
         });
+
+
+        // // my employee count
+        // app.get("/users_company_count/:companyName", async (req, res) => {
+        //     const companyName = req.params.companyName;
+
+        //     const query = {companyName: companyName}
+
+        //     const count = await usersCollection.find(query).countDocuments()
+        //     console.log(count)
+        //     res.send({count});
+        // });
+
+
         // Update or create asset
         app.put("/assets/:id", verifyToken, async (req, res) => {
             const item = req.body;
