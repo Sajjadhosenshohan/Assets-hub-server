@@ -322,22 +322,32 @@ async function run() {
         // my assets by email for assets list hr page
         app.get("/all_assets/:email", verifyToken, verifyAdmin, async (req, res) => {
             const email = req.params.email;
-
-
-            const page = parseInt(req.query.page) || 0;
-            const size = parseInt(req.query.size) || 10;
-
-            const search = req.query.search || "";
-            const availabilityCheck = req.query.availabilityCheck || "";
-
-            const sortField = req.query.sortField || "product_quantity";
-            const sortOrder = parseInt(req.query.sortOrder) || 1;
-
-            const query = {
+            const page = parseInt(req.query.page);
+            const size = parseInt(req.query.size);
+            let query = {
                 Item_Added_By: email,
-                product_name: { $regex: search, $options: "i" }
             };
 
+
+            // search
+            const search = req.query.search || "";
+            if (search) {
+                query.product_name = { $regex: search, $options: "i" };
+            }
+
+
+            // new sort
+            const sort = req.query.sort || "";
+            // ase means small to big and dsc means big to small
+
+            let options = {}
+            if (sort) {
+                options = { sort: { product_quantity: sort === 'asc' ? 1 : -1 } }
+            }
+
+
+            // filter
+            const availabilityCheck = req.query.availabilityCheck || "";
             if (availabilityCheck) {
                 if (availabilityCheck === "available" || availabilityCheck === "out_of_stock") {
                     query.availability = availabilityCheck;
@@ -345,7 +355,7 @@ async function run() {
                     query.product_type = availabilityCheck;
                 }
             }
-            const allAssets = await assetsCollection.find(query).sort({ [sortField]: sortOrder })
+            const allAssets = await assetsCollection.find(query, options)
                 .skip(page * size)
                 .limit(size)
                 .toArray();
@@ -516,6 +526,28 @@ async function run() {
                 res.send({
                     requests: allRequests,
                     count: allRequestCount
+                });
+            } catch (error) {
+                // console.error(error);
+                res.status(500).send({ message: "Internal Server Error" });
+            }
+        });
+        // get all employee list
+        app.get("/users/company/:companyName", verifyToken, verifyAdmin ,async (req, res) => {
+            const companyName = req.params.companyName;
+
+            console.log(companyName)
+            const page = parseInt(req.params.page);
+            const size = parseInt(req.params.size);
+            const query = { companyName: companyName };
+
+            try {
+                const allEmployee = await usersCollection.find(query).skip(page * size).limit(size).toArray();
+                const allEmployeeCount = await usersCollection.countDocuments(query);
+
+                res.send({
+                    myEmployee: allEmployee,
+                    count: allEmployeeCount
                 });
             } catch (error) {
                 // console.error(error);
