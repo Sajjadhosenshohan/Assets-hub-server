@@ -11,7 +11,13 @@
 
 The **Assets-hub** is aimed at facilitating asset and product management for businesses subscribing to the service. The primary focus is to assist HR Managers in monitoring the usage of company assets, categorized into Returnable (e.g., laptops, chairs) and Non-returnable (e.g., pens, paper).
 
----
+
+### 🔐 Admin Credentials
+| Username       | Email                    | Password |
+| -------------- | ------------------------ | -------- |
+| **Sajjad**   | **hr@gmail.com** | **1234Asdf** |
+
+> ⚠️ **Note**: Please ensure these credentials are used responsibly.
 
   ## 🛠 Technologies
 
@@ -32,7 +38,7 @@ The **Assets-hub** is aimed at facilitating asset and product management for bus
 
 
 ## ⚙️ Installation Guide
-To set up **Assets-hub-client** on your local machine, follow these steps:
+To set up **Assets-hub-server** on your local machine, follow these steps:
 
 ### Step 1: Clone the server Repository
 ```bash
@@ -55,7 +61,7 @@ nodemon index.js
 ```
 ## 🌍 Environment Variables
 
-- `BASE_URL` = "https://my-assets-c2027.web.app"
+- `BASE_URL` = "http://localhost:5173"
 
 - `PORT` = your_own_server_port
 
